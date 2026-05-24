@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>FreeCAD MCP Workbench Implementation Progress</title>
+    <style>
+      body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 32px; line-height: 1.5; color: #1f2933; }
+      h1 { margin-bottom: 0; }
+      .meta { color: #52606d; margin-top: 4px; }
+      table { border-collapse: collapse; width: 100%; margin: 24px 0; }
+      th, td { border: 1px solid #d9e2ec; padding: 10px; text-align: left; vertical-align: top; }
+      th { background: #f0f4f8; }
+      .done { color: #0f7b3f; font-weight: 700; }
+      .partial { color: #9a5b00; font-weight: 700; }
+      .pending { color: #9b1c1c; font-weight: 700; }
+      code { background: #f0f4f8; padding: 2px 5px; border-radius: 4px; }
+    </style>
+  </head>
+  <body>
+    <h1>FreeCAD MCP Workbench Implementation Progress</h1>
+    <p class="meta">Updated May 24, 2026. Scope: roadmap phases 1 through 5 from <code>docs/design/implementation-roadmap.md</code>.</p>
+
+    <table>
+      <thead>
+        <tr><th>Phase</th><th>Status</th><th>Implemented</th><th>Remaining Validation</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Phase 1: Live Server Proof of Concept</td>
+          <td class="partial">Implemented, needs FreeCAD runtime validation</td>
+          <td>Localhost Streamable HTTP adapter, MCP SDK dependency check, lifecycle controller, logging, read and mutating tool handlers.</td>
+          <td>Verify official MCP SDK startup inside FreeCAD's bundled Python and confirm GUI-thread dispatch behavior with a live FreeCAD GUI.</td>
+        </tr>
+        <tr>
+          <td>Phase 2: Workbench Packaging</td>
+          <td class="done">Implemented</td>
+          <td><code>InitGui.py</code>, Workbench registration, toolbar/menu commands, dependency path support, status reporting, log command, copy URL command.</td>
+          <td>Confirm Workbench discovery from the target FreeCAD user <code>Mod</code> directory on macOS, Windows, and Linux.</td>
+        </tr>
+        <tr>
+          <td>Phase 3: V1 Tool Implementation</td>
+          <td class="partial">Implemented with conservative FreeCAD API coverage</td>
+          <td>All v1 tool names are registered. Handlers validate inputs, return structured results, avoid arbitrary Python execution, and cover inspection, document control, primitives, sketch workflow, property editing, fillet, STEP export, and STL export.</td>
+          <td>Run against real FreeCAD to tune Part Design body activation, selected-face sketch attachment, constraint signatures, and export module behavior across FreeCAD versions.</td>
+        </tr>
+        <tr>
+          <td>Phase 4: Testing</td>
+          <td class="partial">Automated unit tests implemented</td>
+          <td>Standard-library tests with mocked FreeCAD modules cover schemas, validation errors, primitive creation, recompute calls, property allowlisting, sketch geometry identifiers, save suffix validation, and port conflict fallback.</td>
+          <td>Add live integration tests once a supported FreeCAD executable path is configured. Complete a manual acceptance run in the GUI.</td>
+        </tr>
+        <tr>
+          <td>Phase 5: Polish and Hardening</td>
+          <td class="partial">Initial hardening implemented</td>
+          <td>Port fallback, clearer dependency flow, local logs, status messages, install/troubleshooting docs, explicit progress tracking, and object summaries with transforms and bounding boxes where available.</td>
+          <td>Improve status UI beyond dialogs/console messages after live Workbench testing. Add richer recompute recovery hints from real FreeCAD exception types.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>Key Files</h2>
+    <ul>
+      <li><code>InitGui.py</code>: FreeCAD Workbench entrypoint.</li>
+      <li><code>freecad_mcp_workbench/controller.py</code>: server lifecycle and status.</li>
+      <li><code>freecad_mcp_workbench/server.py</code>: MCP Streamable HTTP runtime.</li>
+      <li><code>freecad_mcp_workbench/tools.py</code>: v1 tool handlers.</li>
+      <li><code>freecad_mcp_workbench/schemas.py</code>: tool input schema registry.</li>
+      <li><code>tests/</code>: mocked FreeCAD unit tests.</li>
+    </ul>
+  </body>
+</html>

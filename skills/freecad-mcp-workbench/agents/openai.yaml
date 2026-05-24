@@ -1,0 +1,4 @@
+display_name: FreeCAD MCP Workbench
+short_description: Connect Codex to a live FreeCAD GUI session through MCP.
+default_prompt: Use the FreeCAD MCP Workbench skill to check the MCP connection, confirm FreeCAD is running, and create or inspect geometry in the live FreeCAD document.
+
