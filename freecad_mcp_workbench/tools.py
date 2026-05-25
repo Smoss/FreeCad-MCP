@@ -7,25 +7,15 @@ from functools import wraps
 from typing import Any
 
 from . import freecad_api as fcapi
+from . import models
 from .errors import (
     EXPORT_FAILED,
     RECOMPUTE_FAILED,
     SELECTION_ERROR,
     UNSUPPORTED_OPERATION,
     ToolFailure,
-    result_from_exception,
     ok,
-)
-from .validation import (
-    absolute_path,
-    ensure_list,
-    ensure_mapping,
-    finite_number,
-    non_empty_string,
-    optional_bool,
-    optional_document_name,
-    point2,
-    positive_number,
+    result_from_exception,
 )
 
 
@@ -41,7 +31,8 @@ def _wrap(func):
 
 
 def _doc(document: str | None = None):
-    return fcapi.get_document(optional_document_name(document))
+    params = models.validate_input(models.DocumentInput, {"document": document})
+    return fcapi.get_document(params.document)
 
 
 def _document_state(doc) -> dict[str, Any]:
@@ -94,11 +85,9 @@ def get_selection() -> dict[str, Any]:
 
 @_wrap
 def create_document(name: str | None = None) -> dict[str, Any]:
-    from .validation import document_safe_name
-
-    safe_name = document_safe_name(name)
+    params = models.validate_input(models.CreateDocumentInput, {"name": name})
     fc = fcapi.app()
-    doc = fc.newDocument(safe_name) if safe_name else fc.newDocument()
+    doc = fc.newDocument(params.name) if params.name else fc.newDocument()
     if hasattr(fc, "setActiveDocument"):
         fc.setActiveDocument(doc.Name)
     return ok({"document": fcapi.document_summary(doc)})
@@ -106,7 +95,8 @@ def create_document(name: str | None = None) -> dict[str, Any]:
 
 @_wrap
 def recompute(document: str | None = None) -> dict[str, Any]:
-    doc = _doc(document)
+    params = models.validate_input(models.DocumentInput, {"document": document})
+    doc = _doc(params.document)
     try:
         return ok(fcapi.recompute_document(doc))
     except Exception as exc:
@@ -115,8 +105,9 @@ def recompute(document: str | None = None) -> dict[str, Any]:
 
 @_wrap
 def save_document(document: str | None = None, path: str | None = None) -> dict[str, Any]:
-    doc = _doc(document)
-    target = absolute_path(path, field="path", suffixes=(".fcstd",))
+    params = models.validate_input(models.SaveDocumentInput, {"document": document, "path": path})
+    doc = _doc(params.document)
+    target = params.path
     os.makedirs(os.path.dirname(target), exist_ok=True)
     doc.saveAs(target)
     return ok({"path": target, "document": fcapi.document_summary(doc)})
@@ -124,9 +115,9 @@ def save_document(document: str | None = None, path: str | None = None) -> dict[
 
 @_wrap
 def create_body(document: str | None = None, label: str = "Body") -> dict[str, Any]:
-    doc = _doc(document)
-    body_label = non_empty_string(label, field="label")
-    body = doc.addObject("PartDesign::Body", body_label)
+    params = models.validate_input(models.CreateBodyInput, {"document": document, "label": label})
+    doc = _doc(params.document)
+    body = doc.addObject("PartDesign::Body", params.label)
     gui = fcapi.gui()
     if gui is not None and hasattr(gui, "activeDocument"):
         active = gui.activeDocument()
@@ -147,12 +138,23 @@ def add_box(
     height_mm: float | None = None,
     placement: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    doc = _doc(document)
-    obj = doc.addObject("Part::Box", non_empty_string(label, field="label"))
-    obj.Length = positive_number(length_mm, field="length_mm")
-    obj.Width = positive_number(width_mm, field="width_mm")
-    obj.Height = positive_number(height_mm, field="height_mm")
-    fcapi.apply_placement(obj, placement)
+    params = models.validate_input(
+        models.AddBoxInput,
+        {
+            "document": document,
+            "label": label,
+            "length_mm": length_mm,
+            "width_mm": width_mm,
+            "height_mm": height_mm,
+            "placement": placement,
+        },
+    )
+    doc = _doc(params.document)
+    obj = doc.addObject("Part::Box", params.label)
+    obj.Length = params.length_mm
+    obj.Width = params.width_mm
+    obj.Height = params.height_mm
+    fcapi.apply_placement(obj, params.placement)
     doc.recompute()
     return ok(_created_object_data(obj, doc))
 
@@ -165,30 +167,42 @@ def add_cylinder(
     height_mm: float | None = None,
     placement: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    doc = _doc(document)
-    obj = doc.addObject("Part::Cylinder", non_empty_string(label, field="label"))
-    obj.Radius = positive_number(radius_mm, field="radius_mm")
-    obj.Height = positive_number(height_mm, field="height_mm")
-    fcapi.apply_placement(obj, placement)
+    params = models.validate_input(
+        models.AddCylinderInput,
+        {
+            "document": document,
+            "label": label,
+            "radius_mm": radius_mm,
+            "height_mm": height_mm,
+            "placement": placement,
+        },
+    )
+    doc = _doc(params.document)
+    obj = doc.addObject("Part::Cylinder", params.label)
+    obj.Radius = params.radius_mm
+    obj.Height = params.height_mm
+    fcapi.apply_placement(obj, params.placement)
     doc.recompute()
     return ok(_created_object_data(obj, doc))
 
 
 @_wrap
-def create_sketch(document: str | None = None, label: str = "Sketch", support: dict[str, Any] | None = None) -> dict[str, Any]:
-    doc = _doc(document)
-    sketch = doc.addObject("Sketcher::SketchObject", non_empty_string(label, field="label"))
-    support_data = ensure_mapping(support or {"mode": "plane", "plane": "XY"}, field="support")
-    mode = support_data.get("mode", "plane")
-    if mode == "plane":
-        plane = support_data.get("plane", "XY")
-        if plane not in {"XY", "XZ", "YZ"}:
-            raise ToolFailure("validation_error", "support.plane must be XY, XZ, or YZ")
+def create_sketch(
+    document: str | None = None, label: str = "Sketch", support: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    input_data: dict[str, Any] = {"document": document, "label": label}
+    if support is not None:
+        input_data["support"] = support
+    params = models.validate_input(models.CreateSketchInput, input_data)
+    doc = _doc(params.document)
+    sketch = doc.addObject("Sketcher::SketchObject", params.label)
+    if params.support.mode == "plane":
+        plane = params.support.plane
         if plane == "XZ":
             sketch.Placement = fcapi.make_placement((0, 0, 0), (0, 90, 0))
         elif plane == "YZ":
             sketch.Placement = fcapi.make_placement((0, 0, 0), (90, 0, 0))
-    elif mode == "selection":
+    elif params.support.mode == "selection":
         gui = fcapi.gui()
         selection = gui.Selection.getSelectionEx() if gui and hasattr(gui, "Selection") else []
         if len(selection) != 1 or len(getattr(selection[0], "SubElementNames", []) or []) != 1:
@@ -196,10 +210,10 @@ def create_sketch(document: str | None = None, label: str = "Sketch", support: d
         selected = selection[0]
         sketch.Support = [(selected.Object, selected.SubElementNames[0])]
         sketch.MapMode = "FlatFace"
-    else:
-        raise ToolFailure("validation_error", "support.mode must be plane or selection")
     doc.recompute()
-    return ok({"object": fcapi.object_ref(sketch, doc), "local_transform": fcapi.placement_to_transform(sketch.Placement)})
+    return ok(
+        {"object": fcapi.object_ref(sketch, doc), "local_transform": fcapi.placement_to_transform(sketch.Placement)}
+    )
 
 
 def _geometry_count(sketch) -> int:
@@ -207,67 +221,72 @@ def _geometry_count(sketch) -> int:
 
 
 @_wrap
-def add_sketch_geometry(document: str | None = None, sketch: str | None = None, geometry: list[dict[str, Any]] | None = None) -> dict[str, Any]:
-    doc = _doc(document)
-    sketch_obj = fcapi.find_object(doc, non_empty_string(sketch, field="sketch"))
+def add_sketch_geometry(
+    document: str | None = None, sketch: str | None = None, geometry: list[dict[str, Any]] | None = None
+) -> dict[str, Any]:
+    params = models.validate_input(
+        models.AddSketchGeometryInput, {"document": document, "sketch": sketch, "geometry": geometry}
+    )
+    doc = _doc(params.document)
+    sketch_obj = fcapi.find_object(doc, params.sketch)
     part = fcapi.part()
     freecad = fcapi.app()
-    operations = ensure_list(geometry, field="geometry")
-    created = []
-    for entry in operations:
-        item = ensure_mapping(entry, field="geometry[]")
-        kind = item.get("type")
-        construction = optional_bool(item.get("construction"), field="construction")
-        if kind == "line":
-            start = point2(item.get("start_mm"), field="start_mm")
-            end = point2(item.get("end_mm"), field="end_mm")
+    created: list[dict[str, Any]] = []
+    for item in params.geometry:
+        if isinstance(item, models.LineGeometryInput):
+            start = item.start_mm
+            end = item.end_mm
             geom = part.LineSegment(freecad.Vector(start[0], start[1], 0), freecad.Vector(end[0], end[1], 0))
-            index = sketch_obj.addGeometry(geom, construction)
+            index = sketch_obj.addGeometry(geom, item.construction)
             created.append({"id": f"g{index}", "type": "line"})
-        elif kind == "rectangle":
-            origin = point2(item.get("origin_mm"), field="origin_mm")
-            width = positive_number(item.get("width_mm"), field="width_mm")
-            height = positive_number(item.get("height_mm"), field="height_mm")
+        elif isinstance(item, models.RectangleGeometryInput):
+            origin = item.origin_mm
+            width = item.width_mm
+            height = item.height_mm
             x, y = origin
             corners = [(x, y), (x + width, y), (x + width, y + height), (x, y + height)]
             ids = []
-            for start, end in zip(corners, corners[1:] + corners[:1]):
+            for start, end in zip(corners, corners[1:] + corners[:1], strict=False):
                 geom = part.LineSegment(freecad.Vector(start[0], start[1], 0), freecad.Vector(end[0], end[1], 0))
-                ids.append(f"g{sketch_obj.addGeometry(geom, construction)}")
+                ids.append(f"g{sketch_obj.addGeometry(geom, item.construction)}")
             created.append({"ids": ids, "type": "rectangle"})
-        elif kind == "circle":
-            center = point2(item.get("center_mm"), field="center_mm")
-            radius = positive_number(item.get("radius_mm"), field="radius_mm")
+        elif isinstance(item, models.CircleGeometryInput):
+            center = item.center_mm
+            radius = item.radius_mm
             geom = part.Circle(freecad.Vector(center[0], center[1], 0), freecad.Vector(0, 0, 1), radius)
-            index = sketch_obj.addGeometry(geom, construction)
+            index = sketch_obj.addGeometry(geom, item.construction)
             created.append({"id": f"g{index}", "type": "circle"})
-        elif kind == "arc":
-            center = point2(item.get("center_mm"), field="center_mm")
-            radius = positive_number(item.get("radius_mm"), field="radius_mm")
-            start = finite_number(item.get("start_degrees"), field="start_degrees")
-            end = finite_number(item.get("end_degrees"), field="end_degrees")
+        elif isinstance(item, models.ArcGeometryInput):
+            center = item.center_mm
+            radius = item.radius_mm
             circle = part.Circle(freecad.Vector(center[0], center[1], 0), freecad.Vector(0, 0, 1), radius)
-            geom = part.ArcOfCircle(circle, start, end)
-            index = sketch_obj.addGeometry(geom, construction)
+            geom = part.ArcOfCircle(circle, item.start_degrees, item.end_degrees)
+            index = sketch_obj.addGeometry(geom, item.construction)
             created.append({"id": f"g{index}", "type": "arc"})
-        else:
-            raise ToolFailure("validation_error", "geometry type must be line, rectangle, circle, or arc")
-    return ok({"sketch": fcapi.object_ref(sketch_obj, doc), "geometry": created, "geometry_count": _geometry_count(sketch_obj)})
+    return ok(
+        {
+            "sketch": fcapi.object_ref(sketch_obj, doc),
+            "geometry": created,
+            "geometry_count": _geometry_count(sketch_obj),
+        }
+    )
 
 
-def _geometry_index(identifier: Any) -> int:
-    value = non_empty_string(identifier, field="geometry")
-    if not value.startswith("g") or not value[1:].isdigit():
-        raise ToolFailure("validation_error", "geometry identifiers must look like g0")
-    return int(value[1:])
+def _geometry_index(identifier: str) -> int:
+    return int(identifier[1:])
 
 
 @_wrap
-def add_sketch_constraint(document: str | None = None, sketch: str | None = None, constraints: list[dict[str, Any]] | None = None) -> dict[str, Any]:
-    doc = _doc(document)
-    sketch_obj = fcapi.find_object(doc, non_empty_string(sketch, field="sketch"))
+def add_sketch_constraint(
+    document: str | None = None, sketch: str | None = None, constraints: list[dict[str, Any]] | None = None
+) -> dict[str, Any]:
+    params = models.validate_input(
+        models.AddSketchConstraintInput,
+        {"document": document, "sketch": sketch, "constraints": constraints},
+    )
+    doc = _doc(params.document)
+    sketch_obj = fcapi.find_object(doc, params.sketch)
     sketcher = fcapi.sketcher()
-    operations = ensure_list(constraints, field="constraints")
     created = []
     mapping = {
         "horizontal": "Horizontal",
@@ -281,24 +300,20 @@ def add_sketch_constraint(document: str | None = None, sketch: str | None = None
         "coincident": "Coincident",
         "symmetric": "Symmetric",
     }
-    for entry in operations:
-        item = ensure_mapping(entry, field="constraints[]")
-        kind = item.get("type")
-        if kind not in mapping:
-            raise ToolFailure("validation_error", "Unsupported sketch constraint type")
-        geo = _geometry_index(item.get("geometry"))
-        if kind in {"distance", "distance_x", "distance_y", "radius", "diameter"}:
-            value = positive_number(item.get("value_mm"), field="value_mm")
-            constraint = sketcher.Constraint(mapping[kind], geo, value)
-        elif kind == "equal":
-            other = _geometry_index(item.get("other_geometry"))
+    for item in params.constraints:
+        kind = item.type
+        geo = _geometry_index(item.geometry)
+        if isinstance(item, models.ValueConstraintInput):
+            constraint = sketcher.Constraint(mapping[kind], geo, item.value_mm)
+        elif isinstance(item, models.EqualConstraintInput):
+            other = _geometry_index(item.other_geometry)
             constraint = sketcher.Constraint("Equal", geo, other)
-        elif kind == "coincident":
-            other = _geometry_index(item.get("other_geometry"))
-            constraint = sketcher.Constraint("Coincident", geo, int(item.get("point", 1)), other, int(item.get("other_point", 1)))
-        elif kind == "symmetric":
-            other = _geometry_index(item.get("other_geometry"))
-            axis = _geometry_index(item.get("axis_geometry"))
+        elif isinstance(item, models.CoincidentConstraintInput):
+            other = _geometry_index(item.other_geometry)
+            constraint = sketcher.Constraint("Coincident", geo, item.point, other, item.other_point)
+        elif isinstance(item, models.SymmetricConstraintInput):
+            other = _geometry_index(item.other_geometry)
+            axis = _geometry_index(item.axis_geometry)
             constraint = sketcher.Constraint("Symmetric", geo, other, axis)
         else:
             constraint = sketcher.Constraint(mapping[kind], geo)
@@ -328,52 +343,71 @@ def _solver_state(sketch_obj) -> dict[str, Any]:
 
 @_wrap
 def solve_sketch(document: str | None = None, sketch: str | None = None) -> dict[str, Any]:
-    doc = _doc(document)
-    sketch_obj = fcapi.find_object(doc, non_empty_string(sketch, field="sketch"))
+    params = models.validate_input(models.SolveSketchInput, {"document": document, "sketch": sketch})
+    doc = _doc(params.document)
+    sketch_obj = fcapi.find_object(doc, params.sketch)
     doc.recompute()
     return ok({"sketch": fcapi.object_ref(sketch_obj, doc), "solver": _solver_state(sketch_obj)})
 
 
 @_wrap
-def pad_sketch(document: str | None = None, sketch: str | None = None, length_mm: float | None = None, symmetric: bool = False) -> dict[str, Any]:
-    doc = _doc(document)
-    sketch_obj = fcapi.find_object(doc, non_empty_string(sketch, field="sketch"))
-    length = positive_number(length_mm, field="length_mm")
-    symmetric_flag = optional_bool(symmetric, field="symmetric")
+def pad_sketch(
+    document: str | None = None, sketch: str | None = None, length_mm: float | None = None, symmetric: bool = False
+) -> dict[str, Any]:
+    params = models.validate_input(
+        models.PadSketchInput,
+        {"document": document, "sketch": sketch, "length_mm": length_mm, "symmetric": symmetric},
+    )
+    doc = _doc(params.document)
+    sketch_obj = fcapi.find_object(doc, params.sketch)
     parent = getattr(sketch_obj, "InList", [None])[0] if getattr(sketch_obj, "InList", []) else None
     if parent is not None and getattr(parent, "TypeId", "") == "PartDesign::Body":
         pad = doc.addObject("PartDesign::Pad", "Pad")
         if hasattr(parent, "addObject"):
             parent.addObject(pad)
         pad.Profile = sketch_obj
-        pad.Length = length
-        pad.Midplane = symmetric_flag
+        pad.Length = params.length_mm
+        pad.Midplane = params.symmetric
     else:
         pad = doc.addObject("Part::Extrusion", "Extrude")
         pad.Base = sketch_obj
         pad.DirMode = "Normal"
-        pad.LengthFwd = length
+        pad.LengthFwd = params.length_mm
         pad.Solid = True
-        if symmetric_flag:
+        if params.symmetric:
             pad.Symmetric = True
     doc.recompute()
     return ok(_created_object_data(pad, doc))
 
 
 @_wrap
-def fillet_edges(document: str | None = None, object: str | None = None, edges: list[str] | None = None, radius_mm: float | None = None) -> dict[str, Any]:
-    doc = _doc(document)
-    source = fcapi.find_object(doc, non_empty_string(object, field="object"))
-    radius = positive_number(radius_mm, field="radius_mm")
-    edge_names = edges
+def fillet_edges(
+    document: str | None = None,
+    object: str | None = None,
+    edges: list[str] | None = None,
+    radius_mm: float | None = None,
+) -> dict[str, Any]:
+    params = models.validate_input(
+        models.FilletEdgesInput,
+        {"document": document, "object": object, "edges": edges, "radius_mm": radius_mm},
+    )
+    doc = _doc(params.document)
+    source = fcapi.find_object(doc, params.object)
+    edge_names = params.edges
     if edge_names is None:
         selection = get_selection()["data"]["selection"]
-        edge_names = [sub for entry in selection if entry["object"] == source.Name for sub in entry["subelements"] if sub.startswith("Edge")]
+        edge_names = [
+            sub
+            for entry in selection
+            if entry["object"] == source.Name
+            for sub in entry["subelements"]
+            if sub.startswith("Edge")
+        ]
     if not edge_names:
         raise ToolFailure("validation_error", "No edges were provided or selected")
     fillet = doc.addObject("Part::Fillet", "Fillet")
     fillet.Base = source
-    fillet.Edges = [(edge, radius, radius) for edge in edge_names]
+    fillet.Edges = [(edge, params.radius_mm, params.radius_mm) for edge in edge_names]
     doc.recompute()
     return ok(_created_object_data(fillet, doc))
 
@@ -383,13 +417,15 @@ def _resolve_operand_objects(doc, object_names: list[str] | None):
         selection = get_selection()["data"]["selection"]
         names = [entry["object"] for entry in selection if entry.get("object") and not entry["subelements"]]
     else:
-        names = [non_empty_string(name, field="objects[]") for name in ensure_list(object_names, field="objects")]
+        names = object_names
     if len(names) < 2:
         raise ToolFailure("validation_error", "Boolean operations require at least two objects")
     objects = [fcapi.find_object(doc, name) for name in names]
     for obj in objects:
         if not hasattr(obj, "Shape") or getattr(obj, "Shape", None) is None:
-            raise ToolFailure("validation_error", "Boolean operands must be solid objects", {"object": getattr(obj, "Name", None)})
+            raise ToolFailure(
+                "validation_error", "Boolean operands must be solid objects", {"object": getattr(obj, "Name", None)}
+            )
     return objects
 
 
@@ -400,22 +436,22 @@ def boolean_operation(
     objects: list[str] | None = None,
     label: str = "Boolean",
 ) -> dict[str, Any]:
-    op = non_empty_string(operation, field="operation")
-    if op not in _BOOLEAN_OPERATIONS:
-        raise ToolFailure("validation_error", "operation must be union, intersection, or difference")
-    result_label = non_empty_string(label, field="label")
-    doc = _doc(document)
-    operands = _resolve_operand_objects(doc, objects)
-    if op == "union":
-        result = doc.addObject("Part::MultiFuse", result_label)
+    params = models.validate_input(
+        models.BooleanOperationInput,
+        {"document": document, "operation": operation, "objects": objects, "label": label},
+    )
+    doc = _doc(params.document)
+    operands = _resolve_operand_objects(doc, params.objects)
+    if params.operation == "union":
+        result = doc.addObject("Part::MultiFuse", params.label)
         result.Shapes = operands
-    elif op == "intersection":
-        result = doc.addObject("Part::MultiCommon", result_label)
+    elif params.operation == "intersection":
+        result = doc.addObject("Part::MultiCommon", params.label)
         result.Shapes = operands
     else:
         result = operands[0]
         for index, tool in enumerate(operands[1:], start=1):
-            cut_label = result_label if index == len(operands) - 1 else f"{result_label}_Step{index}"
+            cut_label = params.label if index == len(operands) - 1 else f"{params.label}_Step{index}"
             cut = doc.addObject("Part::Cut", cut_label)
             cut.Base = result
             cut.Tool = tool
@@ -425,10 +461,16 @@ def boolean_operation(
 
 
 @_wrap
-def set_property(document: str | None = None, object: str | None = None, property: str | None = None, value: Any = None) -> dict[str, Any]:
-    doc = _doc(document)
-    obj = fcapi.find_object(doc, non_empty_string(object, field="object"))
-    prop = non_empty_string(property, field="property")
+def set_property(
+    document: str | None = None, object: str | None = None, property: str | None = None, value: Any = None
+) -> dict[str, Any]:
+    params = models.validate_input(
+        models.SetPropertyInput,
+        {"document": document, "object": object, "property": property, "value": value},
+    )
+    doc = _doc(params.document)
+    obj = fcapi.find_object(doc, params.object)
+    prop = params.property
     type_id = getattr(obj, "TypeId", "")
     allowed = {
         "Part::Box": {"Length", "Width", "Height", "Label", "Placement"},
@@ -438,20 +480,25 @@ def set_property(document: str | None = None, object: str | None = None, propert
     }
     common = {"Label", "Placement"}
     if prop not in allowed.get(type_id, common) and prop not in common:
-        raise ToolFailure(UNSUPPORTED_OPERATION, f"Property is not allowlisted for {type_id}", {"property": prop, "type": type_id})
+        raise ToolFailure(
+            UNSUPPORTED_OPERATION, f"Property is not allowlisted for {type_id}", {"property": prop, "type": type_id}
+        )
     if prop == "Label":
-        setattr(obj, prop, non_empty_string(value, field="value"))
+        string_value = models.validate_input(models.StringValueInput, {"value": params.value})
+        setattr(obj, prop, string_value.value)
     elif prop == "Placement":
-        fcapi.apply_placement(obj, ensure_mapping(value, field="value"))
+        placement_value = models.validate_input(models.PlacementValueInput, {"value": params.value})
+        fcapi.apply_placement(obj, placement_value.value)
     else:
-        setattr(obj, prop, positive_number(value, field="value"))
+        positive_value = models.validate_input(models.PositiveValueInput, {"value": params.value})
+        setattr(obj, prop, positive_value.value)
     doc.recompute()
     return ok({"object": fcapi.object_ref(obj, doc), "property": prop, "value": getattr(obj, prop, None)})
 
 
 def _export_objects(doc, object_names: list[str] | None):
     if object_names:
-        return [fcapi.find_object(doc, non_empty_string(name, field="objects[]")) for name in object_names]
+        return [fcapi.find_object(doc, name) for name in object_names]
     return [
         obj
         for obj in getattr(doc, "Objects", [])
@@ -460,15 +507,17 @@ def _export_objects(doc, object_names: list[str] | None):
 
 
 @_wrap
-def export_step(document: str | None = None, objects: list[str] | None = None, path: str | None = None) -> dict[str, Any]:
-    doc = _doc(document)
-    target = absolute_path(path, field="path", suffixes=(".step", ".stp"))
-    selected = _export_objects(doc, objects)
+def export_step(
+    document: str | None = None, objects: list[str] | None = None, path: str | None = None
+) -> dict[str, Any]:
+    params = models.validate_input(models.ExportStepInput, {"document": document, "objects": objects, "path": path})
+    doc = _doc(params.document)
+    selected = _export_objects(doc, params.objects)
     try:
-        fcapi.import_gui().export(selected, target)
+        fcapi.import_gui().export(selected, params.path)
     except Exception as exc:
-        raise ToolFailure(EXPORT_FAILED, str(exc), {"path": target}) from exc
-    return ok({"path": target, "objects": [fcapi.object_ref(obj, doc) for obj in selected]})
+        raise ToolFailure(EXPORT_FAILED, str(exc), {"path": params.path}) from exc
+    return ok({"path": params.path, "objects": [fcapi.object_ref(obj, doc) for obj in selected]})
 
 
 @_wrap
@@ -479,18 +528,23 @@ def export_stl(
     linear_deflection: float | None = None,
     angular_deflection: float | None = None,
 ) -> dict[str, Any]:
-    doc = _doc(document)
-    target = absolute_path(path, field="path", suffixes=(".stl",))
-    if linear_deflection is not None:
-        positive_number(linear_deflection, field="linear_deflection")
-    if angular_deflection is not None:
-        positive_number(angular_deflection, field="angular_deflection")
-    selected = _export_objects(doc, objects)
+    params = models.validate_input(
+        models.ExportStlInput,
+        {
+            "document": document,
+            "objects": objects,
+            "path": path,
+            "linear_deflection": linear_deflection,
+            "angular_deflection": angular_deflection,
+        },
+    )
+    doc = _doc(params.document)
+    selected = _export_objects(doc, params.objects)
     try:
-        fcapi.mesh().export(selected, target)
+        fcapi.mesh().export(selected, params.path)
     except Exception as exc:
-        raise ToolFailure(EXPORT_FAILED, str(exc), {"path": target}) from exc
-    return ok({"path": target, "objects": [fcapi.object_ref(obj, doc) for obj in selected]})
+        raise ToolFailure(EXPORT_FAILED, str(exc), {"path": params.path}) from exc
+    return ok({"path": params.path, "objects": [fcapi.object_ref(obj, doc) for obj in selected]})
 
 
 TOOL_HANDLERS = {

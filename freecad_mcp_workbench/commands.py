@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from typing import Any
 
+from . import freecad_api as fcapi
+from . import ui
 from .controller import get_controller
 from .dependencies import install_mcp_dependency
 from .logging_config import log_path
-
 
 COMMANDS = [
     "FreeCAD_MCP_Start",
@@ -18,27 +19,19 @@ COMMANDS = [
 ]
 
 
-def _gui():
-    import FreeCADGui  # type: ignore
-
-    return FreeCADGui
-
-
 def _console_message(message: str) -> None:
     try:
-        import FreeCAD  # type: ignore
-
-        FreeCAD.Console.PrintMessage(f"{message}\n")
+        fcapi.app().Console.PrintMessage(f"{message}\n")
     except Exception:
         print(message)
 
 
 def _dialog(title: str, message: str) -> None:
     try:
-        from PySide import QtWidgets  # type: ignore
-
-        QtWidgets.QMessageBox.information(None, title, message)
+        shown = ui.show_info(title, message)
     except Exception:
+        shown = False
+    if not shown:
         _console_message(f"{title}: {message}")
 
 
@@ -84,11 +77,12 @@ class CopyURLCommand(_BaseCommand):
             _dialog("MCP Server", "The MCP server is not running.")
             return
         try:
-            from PySide import QtWidgets  # type: ignore
-
-            QtWidgets.QApplication.clipboard().setText(url)
-            _dialog("MCP Server", f"Copied {url}")
+            copied = ui.copy_to_clipboard(url)
         except Exception:
+            copied = False
+        if copied:
+            _dialog("MCP Server", f"Copied {url}")
+        else:
             _console_message(url)
 
 
@@ -101,10 +95,10 @@ class ShowLogCommand(_BaseCommand):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.touch(exist_ok=True)
         try:
-            from PySide import QtCore, QtGui  # type: ignore
-
-            QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(str(path)))
+            opened = ui.open_local_file(path)
         except Exception:
+            opened = False
+        if not opened:
             _dialog("MCP Server Log", str(path))
 
 
@@ -119,14 +113,11 @@ class CheckDependenciesCommand(_BaseCommand):
             return
         install = False
         try:
-            from PySide import QtWidgets  # type: ignore
-
-            response = QtWidgets.QMessageBox.question(
-                None,
+            response = ui.ask_yes_no(
                 "MCP Dependencies",
                 f"{status['message']}\n\nInstall into:\n{status['dependency_dir']}?",
             )
-            install = response == QtWidgets.QMessageBox.Yes
+            install = bool(response)
         except Exception:
             _console_message(status["message"])
         if install:
@@ -135,10 +126,11 @@ class CheckDependenciesCommand(_BaseCommand):
 
 
 def register_commands() -> None:
-    gui = _gui()
+    gui = fcapi.gui()
+    if gui is None:
+        raise RuntimeError("FreeCADGui is not available")
     gui.addCommand("FreeCAD_MCP_Start", StartServerCommand())
     gui.addCommand("FreeCAD_MCP_Stop", StopServerCommand())
     gui.addCommand("FreeCAD_MCP_CopyURL", CopyURLCommand())
     gui.addCommand("FreeCAD_MCP_ShowLog", ShowLogCommand())
     gui.addCommand("FreeCAD_MCP_CheckDependencies", CheckDependenciesCommand())
-

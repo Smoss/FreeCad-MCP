@@ -28,6 +28,15 @@ Run the local test suite outside FreeCAD:
 uv run python -m unittest discover -s tests
 ```
 
+Install development dependencies and run static checks:
+
+```bash
+uv sync --extra dev --extra mcp
+uv run ruff check freecad_mcp_workbench tests InitGui.py
+uv run ruff format freecad_mcp_workbench tests InitGui.py
+uv run mypy freecad_mcp_workbench tests InitGui.py
+```
+
 The tests use mocked FreeCAD modules. Full runtime validation still requires a manual FreeCAD acceptance run.
 
 See [docs/user/installation.md](docs/user/installation.md) and [docs/user/troubleshooting.md](docs/user/troubleshooting.md) for local Workbench setup and runtime diagnostics.

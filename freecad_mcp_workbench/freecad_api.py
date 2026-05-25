@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import importlib
-import math
 import queue
 import threading
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
+from . import ui
 from .errors import DOCUMENT_NOT_FOUND, NO_ACTIVE_DOCUMENT, OBJECT_NOT_FOUND, ToolFailure
 
 
@@ -125,14 +126,11 @@ def make_placement(position_mm: tuple[float, float, float], rotation_degrees: tu
     return fc.Placement(vector, rotation)
 
 
-def apply_placement(obj: Any, placement_data: dict[str, Any] | None) -> None:
+def apply_placement(obj: Any, placement_data: Any | None) -> None:
     if not placement_data:
         return
-    from .validation import ensure_mapping, point3
-
-    placement = ensure_mapping(placement_data, field="placement")
-    position = point3(placement.get("position_mm", [0, 0, 0]), field="placement.position_mm")
-    rotation = point3(placement.get("rotation_degrees", [0, 0, 0]), field="placement.rotation_degrees")
+    position = tuple(placement_data.position_mm)
+    rotation = tuple(placement_data.rotation_degrees)
     obj.Placement = make_placement(position, rotation)
 
 
@@ -161,7 +159,7 @@ def object_summary(obj: Any) -> dict[str, Any]:
         "world_transform": placement_to_transform(world),
         "children": [getattr(child, "Name", None) for child in getattr(obj, "OutList", [])],
     }
-    if hasattr(obj, "Shape") and getattr(obj, "Shape") is not None:
+    if hasattr(obj, "Shape") and obj.Shape is not None:
         bbox = bounding_box(obj)
         if bbox is not None:
             summary["bounding_box"] = bbox
@@ -207,10 +205,10 @@ class GuiDispatcher:
 
     def __init__(self) -> None:
         self._dispatcher = None
-        try:
-            from PySide import QtCore  # type: ignore
+        if ui.QtCore is not None:
+            QtCore = ui.QtCore
 
-            class _Dispatcher(QtCore.QObject):
+            class _Dispatcher(QtCore.QObject):  # type: ignore[name-defined]
                 request = QtCore.Signal(object)
 
                 def __init__(self):
@@ -227,8 +225,6 @@ class GuiDispatcher:
                         done.set()
 
             self._dispatcher = _Dispatcher()
-        except Exception:
-            self._dispatcher = None
 
     def call(self, func: Callable[[], Any], *, timeout: float = 60.0) -> Any:
         if self._dispatcher is None or threading.current_thread() is threading.main_thread():
@@ -250,4 +246,3 @@ def recompute_document(doc: Any) -> dict[str, Any]:
     if hasattr(doc, "OpenTransaction"):
         warnings.append("Document transaction support detected")
     return {"document": document_summary(doc), "warnings": warnings}
-
