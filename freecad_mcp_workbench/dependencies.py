@@ -11,6 +11,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+REQUIRED_PACKAGES = ("mcp", "pydantic")
+INSTALL_PACKAGES = ("mcp", "pydantic>=2")
+
 
 @dataclass(frozen=True)
 class DependencyStatus:
@@ -48,21 +51,25 @@ def add_dependency_path(path: Path | None = None) -> Path:
 
 def check_mcp_dependency() -> DependencyStatus:
     target = add_dependency_path()
-    spec = importlib.util.find_spec("mcp")
-    available = spec is not None
+    missing = [package for package in REQUIRED_PACKAGES if importlib.util.find_spec(package) is None]
+    available = not missing
     return DependencyStatus(
         available=available,
         python_executable=sys.executable,
         python_version=sys.version.split()[0],
         dependency_dir=str(target),
-        message="MCP SDK is importable" if available else "MCP SDK is missing; install package 'mcp' into the dependency directory",
+        message=(
+            "MCP SDK and Pydantic are importable"
+            if available
+            else f"Missing packages: {', '.join(missing)}; install MCP SDK and Pydantic into the dependency directory"
+        ),
     )
 
 
 def install_mcp_dependency() -> DependencyStatus:
     target = dependency_dir()
     target.mkdir(parents=True, exist_ok=True)
-    cmd = [sys.executable, "-m", "pip", "install", "--target", str(target), "mcp"]
+    cmd = [sys.executable, "-m", "pip", "install", "--target", str(target), *INSTALL_PACKAGES]
     try:
         subprocess.check_call(cmd)
     except Exception as exc:
@@ -74,4 +81,3 @@ def install_mcp_dependency() -> DependencyStatus:
             message=f"Automatic install failed: {exc}",
         )
     return check_mcp_dependency()
-

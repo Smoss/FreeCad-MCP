@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-
 VALIDATION_ERROR = "validation_error"
 NO_ACTIVE_DOCUMENT = "no_active_document"
 DOCUMENT_NOT_FOUND = "document_not_found"
@@ -47,4 +46,3 @@ def result_from_exception(exc: Exception) -> dict[str, Any]:
     if isinstance(exc, ToolFailure):
         return exc.to_result()
     return error(FREECAD_ERROR, str(exc), {"type": exc.__class__.__name__})
-

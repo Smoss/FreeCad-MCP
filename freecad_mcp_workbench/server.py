@@ -4,13 +4,30 @@ from __future__ import annotations
 
 import socket
 import threading
-from functools import wraps
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
+from functools import wraps
+from typing import Any
 
 from .errors import DEPENDENCY_MISSING, ToolFailure
 from .logging_config import get_logger
 from .tools import TOOL_HANDLERS
+
+FastMCP: Any | None
+_FASTMCP_IMPORT_ERROR: Exception | None = None
+try:
+    from mcp.server.fastmcp import FastMCP
+except Exception as exc:
+    FastMCP = None
+    _FASTMCP_IMPORT_ERROR = exc
+
+uvicorn: Any | None
+_UVICORN_IMPORT_ERROR: Exception | None = None
+try:
+    import uvicorn
+except Exception as exc:
+    uvicorn = None
+    _UVICORN_IMPORT_ERROR = exc
 
 
 DEFAULT_HOST = "127.0.0.1"
@@ -43,9 +60,8 @@ def find_available_port(host: str = DEFAULT_HOST, start: int = DEFAULT_PORT, att
 
 
 def build_mcp_app(dispatch: Callable[[Callable[[], Any]], Any], host: str, port: int):
-    try:
-        from mcp.server.fastmcp import FastMCP
-    except Exception as exc:
+    if FastMCP is None:
+        exc = _FASTMCP_IMPORT_ERROR
         raise ToolFailure(DEPENDENCY_MISSING, "MCP SDK is not importable", {"exception": str(exc)}) from exc
 
     mcp = FastMCP(
@@ -75,11 +91,14 @@ def build_mcp_app(dispatch: Callable[[Callable[[], Any]], Any], host: str, port:
     return mcp.streamable_http_app()
 
 
-def start_runtime(dispatch: Callable[[Callable[[], Any]], Any], host: str = DEFAULT_HOST, port: int | None = None) -> ServerRuntime:
-    try:
-        import uvicorn
-    except Exception as exc:
-        raise ToolFailure(DEPENDENCY_MISSING, "uvicorn is required by the MCP SDK HTTP transport", {"exception": str(exc)}) from exc
+def start_runtime(
+    dispatch: Callable[[Callable[[], Any]], Any], host: str = DEFAULT_HOST, port: int | None = None
+) -> ServerRuntime:
+    if uvicorn is None:
+        exc = _UVICORN_IMPORT_ERROR
+        raise ToolFailure(
+            DEPENDENCY_MISSING, "uvicorn is required by the MCP SDK HTTP transport", {"exception": str(exc)}
+        ) from exc
 
     selected_port = find_available_port(host, port or DEFAULT_PORT)
     app = build_mcp_app(dispatch, host, selected_port)

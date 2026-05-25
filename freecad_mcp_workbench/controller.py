@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import enum
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
 from .dependencies import check_mcp_dependency
 from .errors import ToolFailure
-from .freecad_api import GuiDispatcher, gui
+from .freecad_api import GuiDispatcher, app, gui
 from .logging_config import get_logger, log_path
 from .server import DEFAULT_HOST, DEFAULT_PORT, ServerRuntime, start_runtime, stop_runtime
 from .tools import TOOL_HANDLERS
@@ -39,9 +40,7 @@ class ControllerStatus:
 
 def _console_message(message: str) -> None:
     try:
-        import FreeCAD  # type: ignore
-
-        FreeCAD.Console.PrintMessage(f"{message}\n")
+        app().Console.PrintMessage(f"{message}\n")
     except Exception:
         print(message)
 

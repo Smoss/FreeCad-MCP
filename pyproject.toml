@@ -9,5 +9,44 @@ dependencies = []
 [project.optional-dependencies]
 mcp = [
   "mcp>=1.8",
+  "pydantic>=2",
 ]
-dev = []
+dev = [
+  "mypy",
+  "pydantic>=2",
+  "ruff",
+]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+exclude = [
+  "docs",
+  "*.FCStd",
+  "*.FCBak",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "PLC0415"]
+
+[tool.mypy]
+python_version = "3.10"
+plugins = ["pydantic.mypy"]
+check_untyped_defs = true
+warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+module = [
+  "FreeCAD",
+  "FreeCADGui",
+  "ImportGui",
+  "Mesh",
+  "Part",
+  "PySide",
+  "Sketcher",
+]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "tests.conftest"
+ignore_errors = true
