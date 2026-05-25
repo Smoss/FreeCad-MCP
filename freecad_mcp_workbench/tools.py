@@ -61,6 +61,9 @@ def _created_object_data(obj, doc) -> dict[str, Any]:
     return data
 
 
+_BOOLEAN_OPERATIONS = {"union", "intersection", "difference"}
+
+
 @_wrap
 def get_active_document() -> dict[str, Any]:
     document = getattr(fcapi.app(), "ActiveDocument", None)
@@ -375,6 +378,52 @@ def fillet_edges(document: str | None = None, object: str | None = None, edges: 
     return ok(_created_object_data(fillet, doc))
 
 
+def _resolve_operand_objects(doc, object_names: list[str] | None):
+    if object_names is None:
+        selection = get_selection()["data"]["selection"]
+        names = [entry["object"] for entry in selection if entry.get("object") and not entry["subelements"]]
+    else:
+        names = [non_empty_string(name, field="objects[]") for name in ensure_list(object_names, field="objects")]
+    if len(names) < 2:
+        raise ToolFailure("validation_error", "Boolean operations require at least two objects")
+    objects = [fcapi.find_object(doc, name) for name in names]
+    for obj in objects:
+        if not hasattr(obj, "Shape") or getattr(obj, "Shape", None) is None:
+            raise ToolFailure("validation_error", "Boolean operands must be solid objects", {"object": getattr(obj, "Name", None)})
+    return objects
+
+
+@_wrap
+def boolean_operation(
+    document: str | None = None,
+    operation: str | None = None,
+    objects: list[str] | None = None,
+    label: str = "Boolean",
+) -> dict[str, Any]:
+    op = non_empty_string(operation, field="operation")
+    if op not in _BOOLEAN_OPERATIONS:
+        raise ToolFailure("validation_error", "operation must be union, intersection, or difference")
+    result_label = non_empty_string(label, field="label")
+    doc = _doc(document)
+    operands = _resolve_operand_objects(doc, objects)
+    if op == "union":
+        result = doc.addObject("Part::MultiFuse", result_label)
+        result.Shapes = operands
+    elif op == "intersection":
+        result = doc.addObject("Part::MultiCommon", result_label)
+        result.Shapes = operands
+    else:
+        result = operands[0]
+        for index, tool in enumerate(operands[1:], start=1):
+            cut_label = result_label if index == len(operands) - 1 else f"{result_label}_Step{index}"
+            cut = doc.addObject("Part::Cut", cut_label)
+            cut.Base = result
+            cut.Tool = tool
+            result = cut
+    doc.recompute()
+    return ok(_created_object_data(result, doc))
+
+
 @_wrap
 def set_property(document: str | None = None, object: str | None = None, property: str | None = None, value: Any = None) -> dict[str, Any]:
     doc = _doc(document)
@@ -459,6 +508,7 @@ TOOL_HANDLERS = {
     "solve_sketch": solve_sketch,
     "pad_sketch": pad_sketch,
     "fillet_edges": fillet_edges,
+    "boolean_operation": boolean_operation,
     "set_property": set_property,
     "export_step": export_step,
     "export_stl": export_stl,

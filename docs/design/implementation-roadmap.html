@@ -327,7 +327,7 @@
               <ul>
                 <li>Inspection tools: <code>get_active_document</code>, <code>get_selection</code>.</li>
                 <li>Document tools: <code>create_document</code>, <code>recompute</code>, <code>save_document</code>.</li>
-                <li>Modeling tools: <code>create_body</code>, <code>add_box</code>, <code>add_cylinder</code>, <code>create_sketch</code>, <code>add_sketch_geometry</code>, <code>add_sketch_constraint</code>, <code>solve_sketch</code>, <code>pad_sketch</code>, <code>fillet_edges</code>.</li>
+                <li>Modeling tools: <code>create_body</code>, <code>add_box</code>, <code>add_cylinder</code>, <code>create_sketch</code>, <code>add_sketch_geometry</code>, <code>add_sketch_constraint</code>, <code>solve_sketch</code>, <code>pad_sketch</code>, <code>fillet_edges</code>, <code>boolean_operation</code>.</li>
                 <li>Editing tool: <code>set_property</code>.</li>
                 <li>Export tools: <code>export_step</code>, <code>export_stl</code>.</li>
               </ul>
@@ -377,6 +377,8 @@
             <li>Connect an MCP client to the displayed localhost URL.</li>
             <li>Create a new document.</li>
             <li>Add a box.</li>
+            <li>Add a second overlapping solid.</li>
+            <li>Fuse the solids with <code>boolean_operation</code>, then subtract one solid from another.</li>
             <li>Change one dimension with <code>set_property</code>.</li>
             <li>Recompute.</li>
             <li>Save <code>.FCStd</code>.</li>

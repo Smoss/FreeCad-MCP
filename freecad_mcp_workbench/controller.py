@@ -11,6 +11,7 @@ from .errors import ToolFailure
 from .freecad_api import GuiDispatcher, gui
 from .logging_config import get_logger, log_path
 from .server import DEFAULT_HOST, DEFAULT_PORT, ServerRuntime, start_runtime, stop_runtime
+from .tools import TOOL_HANDLERS
 
 
 class ServerState(str, enum.Enum):
@@ -34,6 +35,20 @@ class ControllerStatus:
             "error": self.error,
             "log_path": self.log_path,
         }
+
+
+def _console_message(message: str) -> None:
+    try:
+        import FreeCAD  # type: ignore
+
+        FreeCAD.Console.PrintMessage(f"{message}\n")
+    except Exception:
+        print(message)
+
+
+def _available_tools_message() -> str:
+    tools = "\n".join(f"  - {name}" for name in TOOL_HANDLERS)
+    return f"MCP available tools ({len(TOOL_HANDLERS)}):\n{tools}"
 
 
 class ServerController:
@@ -67,6 +82,7 @@ class ServerController:
             self.runtime = start_runtime(self.dispatch, host=host, port=port or DEFAULT_PORT)
             self.state = ServerState.RUNNING
             self.logger.info("server_started url=%s", self.runtime.url)
+            _console_message(_available_tools_message())
         except Exception as exc:
             self.runtime = None
             self.state = ServerState.FAILED

@@ -74,7 +74,7 @@ class FakeObject:
         self.InList = []
         self.Geometry = []
         self.Constraints = []
-        if type_id in {"Part::Box", "Part::Cylinder", "Part::Fillet", "Part::Extrusion"}:
+        if type_id in {"Part::Box", "Part::Cylinder", "Part::Fillet", "Part::Extrusion", "Part::MultiFuse", "Part::MultiCommon", "Part::Cut"}:
             self.Shape = FakeShape()
 
     def addGeometry(self, geom, construction=False):

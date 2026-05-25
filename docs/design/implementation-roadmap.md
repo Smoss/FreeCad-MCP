@@ -100,6 +100,7 @@ Deliverables:
   - `solve_sketch`
   - `pad_sketch`
   - `fillet_edges`
+  - `boolean_operation`
 - Editing tool:
   - `set_property`
 - Export tools:
@@ -143,11 +144,13 @@ Manual acceptance scenario:
 4. Connect an MCP client to the displayed localhost URL.
 5. Create a new document.
 6. Add a box.
-7. Change one dimension with `set_property`.
-8. Recompute.
-9. Save `.FCStd`.
-10. Export STEP and STL.
-11. Stop the MCP server.
+7. Add a second overlapping solid.
+8. Fuse the solids with `boolean_operation`, then subtract one solid from another.
+9. Change one dimension with `set_property`.
+10. Recompute.
+11. Save `.FCStd`.
+12. Export STEP and STL.
+13. Stop the MCP server.
 
 Acceptance criteria:
 
