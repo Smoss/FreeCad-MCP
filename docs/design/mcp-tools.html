@@ -310,7 +310,7 @@
               </tr>
               <tr>
                 <td>Modeling</td>
-                <td><code>create_body</code>, <code>add_box</code>, <code>add_cylinder</code>, <code>create_sketch</code>, <code>add_sketch_geometry</code>, <code>add_sketch_constraint</code>, <code>solve_sketch</code>, <code>pad_sketch</code>, <code>fillet_edges</code></td>
+                <td><code>create_body</code>, <code>add_box</code>, <code>add_cylinder</code>, <code>create_sketch</code>, <code>add_sketch_geometry</code>, <code>add_sketch_constraint</code>, <code>solve_sketch</code>, <code>pad_sketch</code>, <code>fillet_edges</code>, <code>boolean_operation</code></td>
                 <td>Create high-level CAD objects, constrained sketch profiles, and features.</td>
               </tr>
               <tr>
@@ -538,6 +538,7 @@
 
         <section id="modeling-tools">
           <h2>Modeling Tools</h2>
+          <p>Boolean operations combine existing solid objects into a new parametric feature. Use them when the requested model needs fused, intersected, or subtracted volume instead of separate overlapping primitives.</p>
           <div class="tool">
             <h3><code>create_body</code></h3>
             <p>Creates or activates a Part Design body.</p>
@@ -784,6 +785,34 @@
               <li>Create a fillet feature.</li>
               <li>Recompute the document.</li>
               <li>Return the resulting object reference.</li>
+            </ul>
+          </div>
+          <div class="tool">
+            <h3><code>boolean_operation</code></h3>
+            <p>Creates a parametric boolean feature from two or more solid objects.</p>
+            <h4>Input</h4>
+            <pre><code>{
+  "document": "Unnamed",
+  "operation": "difference",
+  "objects": ["Base", "Post"],
+  "label": "BaseMinusPost"
+}</code></pre>
+            <h4>Validation</h4>
+            <ul>
+              <li><code>operation</code> must be <code>union</code>, <code>intersection</code>, or <code>difference</code>.</li>
+              <li><code>objects</code> is optional. If provided, it must contain at least two object names.</li>
+              <li>If <code>objects</code> is omitted, use the current whole-object selection. Subelement selections are ignored.</li>
+              <li>At least two operands must be available.</li>
+              <li>Each operand must exist and expose a solid shape.</li>
+            </ul>
+            <h4>Behavior</h4>
+            <ul>
+              <li><code>union</code> fuses all operands into a <code>Part::MultiFuse</code> feature.</li>
+              <li><code>intersection</code> creates the common volume of all operands with a <code>Part::MultiCommon</code> feature.</li>
+              <li><code>difference</code> subtracts later operands from the first operand with one or more <code>Part::Cut</code> features.</li>
+              <li>Recompute the document.</li>
+              <li>Return the resulting object reference and bounding box when available.</li>
+              <li>Leave source objects in the document.</li>
             </ul>
           </div>
         </section>

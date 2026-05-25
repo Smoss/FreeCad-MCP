@@ -251,6 +251,8 @@ Behavior:
 
 ## Modeling Tools
 
+Boolean operations combine existing solid objects into a new parametric feature. Use them when the requested model needs fused, intersected, or subtracted volume instead of separate overlapping primitives.
+
 ## Sketch Interaction Model
 
 Sketch interaction is command-based, not mouse-based. The AI client does not drag points in the FreeCAD UI. Instead, it:
@@ -544,6 +546,38 @@ Behavior:
 - Create a fillet feature.
 - Recompute the document.
 - Return the resulting object reference.
+
+### `boolean_operation`
+
+Creates a parametric boolean feature from two or more solid objects.
+
+Input:
+
+```json
+{
+  "document": "Unnamed",
+  "operation": "difference",
+  "objects": ["Base", "Post"],
+  "label": "BaseMinusPost"
+}
+```
+
+Validation:
+
+- `operation` must be `union`, `intersection`, or `difference`.
+- `objects` is optional. If provided, it must contain at least two object names.
+- If `objects` is omitted, use the current whole-object selection. Subelement selections are ignored.
+- At least two operands must be available.
+- Each operand must exist and expose a solid shape.
+
+Behavior:
+
+- `union` fuses all operands into a `Part::MultiFuse` feature.
+- `intersection` creates the common volume of all operands with a `Part::MultiCommon` feature.
+- `difference` subtracts later operands from the first operand with one or more `Part::Cut` features.
+- Recompute the document.
+- Return the resulting object reference and bounding box when available.
+- Leave source objects in the document.
 
 ## Editing Tools
 

@@ -63,6 +63,16 @@ TOOL_SCHEMAS: dict[str, dict[str, Any]] = {
         "required": ["object", "radius_mm"],
         "properties": {"document": STRING, "object": STRING, "edges": {"type": "array", "items": STRING}, "radius_mm": POSITIVE},
     },
+    "boolean_operation": {
+        **OBJECT,
+        "required": ["operation"],
+        "properties": {
+            "document": STRING,
+            "operation": {"type": "string", "enum": ["union", "intersection", "difference"]},
+            "objects": {"type": "array", "items": STRING, "minItems": 2},
+            "label": STRING,
+        },
+    },
     "set_property": {
         **OBJECT,
         "required": ["object", "property", "value"],

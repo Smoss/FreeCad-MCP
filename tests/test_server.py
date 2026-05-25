@@ -1,6 +1,7 @@
 import unittest
 from unittest.mock import patch
 
+from freecad_mcp_workbench.controller import _available_tools_message
 from freecad_mcp_workbench.server import find_available_port
 
 
@@ -28,6 +29,12 @@ class ServerTests(unittest.TestCase):
 
         self.assertEqual(selected, 8766)
         self.assertEqual(attempts, [8765, 8766])
+
+    def test_available_tools_message_includes_registered_tools(self):
+        message = _available_tools_message()
+
+        self.assertIn("MCP available tools (18):", message)
+        self.assertIn("  - boolean_operation", message)
 
 
 if __name__ == "__main__":

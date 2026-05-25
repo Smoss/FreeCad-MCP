@@ -123,7 +123,7 @@ The initial tool categories are:
 - Primitive creation: box, cylinder.
 - Part Design setup: create or activate body.
 - Sketch workflow: create sketch, add constrained geometry, solve, and pad sketch.
-- Feature editing: property updates and fillets.
+- Feature editing: property updates, fillets, and boolean union/intersection/difference.
 - Export: STEP and STL.
 
 Tool handlers return structured JSON-compatible data. They should not return raw FreeCAD Python objects.

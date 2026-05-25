@@ -83,6 +83,52 @@ class ToolTests(unittest.TestCase):
         self.assertTrue(accepted["ok"])
         self.assertFalse(accepted["data"]["document"]["is_dirty"])
 
+    def test_boolean_operation_union_creates_multifuse(self):
+        tools.create_document(name="demo")
+        tools.add_box(document="demo", label="Base", length_mm=80, width_mm=40, height_mm=12)
+        tools.add_box(document="demo", label="Tool", length_mm=10, width_mm=10, height_mm=10)
+
+        result = tools.boolean_operation(document="demo", operation="union", objects=["Base", "Tool"], label="Union")
+
+        doc = self.fake_freecad["docs"]["demo"]
+        obj = doc.getObject("Union")
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["data"]["object"]["type"], "Part::MultiFuse")
+        self.assertEqual(obj.Shapes, [doc.getObject("Base"), doc.getObject("Tool")])
+        self.assertEqual(doc.recompute_count, 3)
+
+    def test_boolean_operation_difference_wires_base_and_tool(self):
+        tools.create_document(name="demo")
+        tools.add_box(document="demo", label="Base", length_mm=80, width_mm=40, height_mm=12)
+        tools.add_box(document="demo", label="Tool", length_mm=10, width_mm=10, height_mm=10)
+
+        result = tools.boolean_operation(document="demo", operation="difference", objects=["Base", "Tool"], label="Cut")
+
+        doc = self.fake_freecad["docs"]["demo"]
+        obj = doc.getObject("Cut")
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["data"]["object"]["type"], "Part::Cut")
+        self.assertEqual(obj.Base, doc.getObject("Base"))
+        self.assertEqual(obj.Tool, doc.getObject("Tool"))
+        self.assertEqual(doc.recompute_count, 3)
+
+    def test_boolean_operation_rejects_invalid_operation(self):
+        tools.create_document(name="demo")
+
+        result = tools.boolean_operation(document="demo", operation="disjoint", objects=["Base", "Tool"])
+
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["error"]["code"], "validation_error")
+
+    def test_boolean_operation_requires_two_objects(self):
+        tools.create_document(name="demo")
+        tools.add_box(document="demo", label="Base", length_mm=80, width_mm=40, height_mm=12)
+
+        result = tools.boolean_operation(document="demo", operation="union", objects=["Base"])
+
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["error"]["code"], "validation_error")
+
     def test_all_v1_tool_names_registered(self):
         expected = {
             "get_active_document",
@@ -99,6 +145,7 @@ class ToolTests(unittest.TestCase):
             "solve_sketch",
             "pad_sketch",
             "fillet_edges",
+            "boolean_operation",
             "set_property",
             "export_step",
             "export_stl",

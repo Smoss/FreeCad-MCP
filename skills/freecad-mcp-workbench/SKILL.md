@@ -55,6 +55,7 @@ If FreeCAD tools are available, use them directly. Expected v1 tool names:
 - `solve_sketch`
 - `pad_sketch`
 - `fillet_edges`
+- `boolean_operation`
 - `set_property`
 - `export_step`
 - `export_stl`
@@ -77,6 +78,8 @@ For “create a box with cylinder,” use this sequence once the MCP tools are a
 ```
 
 The placement centers the cylinder on top of the box.
+
+Use `boolean_operation` when separate solids need to become one result. For example, call it with `operation: "difference"` and `objects: ["Base", "Post"]` to subtract a cylinder from a box.
 
 ## Troubleshooting
 
